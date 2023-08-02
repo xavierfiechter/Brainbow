@@ -37,7 +37,7 @@ requirements =
   python3,
   cffi,
   pbkdf2,
-  Cython==0.29.32,
+  Cython==0.29.36,
   typing-extensions==4.4.0,
   aioconsole==0.1.10,
   aiosignal==1.2.0,
@@ -80,36 +80,16 @@ requirements =
   urllib3==1.24.3,
   yarl==1.8.1,
   zipp==3.8.1,
-  #blockcypher==1.0.93,
-  #python-dateutil==2.8.2,
-  #bitcoin==1.1.39,
   android,
   pyjnius==1.4.2,
   embit==0.7.0,
   numpy==1.22.3,
-
   camera4kivy==0.1.0,
   gestures4kivy==0.1.0,
   pillow==8.4.0,
   libiconv,
   libzbar,
   pyzbar==0.1.7,
-
-#  cryptography,
-#  setuptools-rust,
-#  pycparser==2.14,
-#  secp256k1==0.13.2.4,
-#  websocket-client==1.4.2,
-
-
-# nostr==0.0.1 dependencies
-#cffi==1.15.1, but we have 1.13.2 available
-#cryptography==39.0.0,  we have
-#pycparser==2.14, but asks for 2.21,
-#secp256k1, asks for 0.14.0
-#websocket-client==1.4.2,
-
-#  connectrum==0.8.1 extended and included in app ,
 
 
 # (str) Custom source folders for requirements
@@ -199,7 +179,7 @@ android.api = 33
 #android.sdk = 27
 
 # (str) Android NDK version to use
-#android.ndk = 23b
+#android.ndk = 25b
 
 # (int) Android NDK API to use. This is the minimum API your app will support, it should usually match android.minapi.
 #android.ndk_api = 21
