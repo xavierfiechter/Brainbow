@@ -28,10 +28,14 @@ source.exclude_dirs = tests, bin, venv, old-sources, multisig
 version.regex = __version__ = ['"](.*)['"]
 version.filename = %(source.dir)s/main.py
 
+#python3==3.9.9,
+#cffi==1.13.2,
+
+
 # (list) Application requirements
 requirements =
-  python3==3.9.9,
-  cffi==1.13.2,
+  python3,
+  cffi,
   pbkdf2,
   Cython==0.29.32,
   typing-extensions==4.4.0,
