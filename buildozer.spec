@@ -80,7 +80,7 @@ requirements =
   #python-dateutil==2.8.2,
   #bitcoin==1.1.39,
   android,
-  pyjnius==1.4.2,
+  pyjnius==1.5.0,
   embit==0.7.0,
   numpy==1.22.3,
   camera4kivy==0.1.0,
