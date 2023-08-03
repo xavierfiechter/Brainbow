@@ -33,7 +33,7 @@ requirements =
   python3==3.10.12,
   cffi==1.15.1,
   pbkdf2,
-  Cython==0.29.32,
+  Cython==0.29.33,
   typing-extensions==4.4.0,
   aioconsole==0.1.10,
   aiosignal==1.2.0,
