@@ -13,7 +13,7 @@ import re
 from asyncio import create_task as asyncio_create_task
 from asyncio import gather as asyncio_gather
 from asyncio import sleep as asyncio_sleep
-
+from aiosocks import errors as aiosocks_errors
 
 import logging
 
@@ -58,7 +58,6 @@ from kivy.uix.modalview import ModalView
 
 #from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.uix.button import ButtonBehavior
-#from kivy.uix.boxlayout import BoxLayout
 from kivy.properties import StringProperty
 
 from kivy_garden.qrcode import QRCodeWidget
@@ -99,17 +98,12 @@ from label_store import LabelStore
 
 top_blk = {'height', 0}
 
-#import os
-
-
-
-__version__ = "0.1.147"
+__version__ = "0.1.151"
 
 if platform == "android":
     Window.softinput_mode = "below_target"
 else:
     Window.size = (768/2, 1366/2)
-
 
 
 class IconLeftConfirmationWidget(ILeftBodyTouch, MDIconButton):
@@ -123,14 +117,11 @@ class Tab(MDFloatLayout, MDTabsBase):
 class WelcomeScreen(Screen):
     pass
 
-
 class LoginScreen(Screen):
     pass
 
-
 class MainScreen(Screen):
     pass
-
 
 class WaitScreen(Screen):
     pass
@@ -140,7 +131,6 @@ class YPUBScreen(Screen):
 
 class SeedScreen(Screen):
     pass
-
 
 class PINScreen(Screen):
     pass
@@ -154,25 +144,20 @@ class BlockHeightScreen(Screen):
 class TXReviewScreen(Screen):
     pass
 
-
 class BalanceLabel(ButtonBehavior, MDLabel):
     pass
-
 
 class PassphraseControlField(MDRelativeLayout):
     text = StringProperty()
     hint_text = StringProperty()
-
 
 class QRScanAddressField(MDRelativeLayout):
     text = StringProperty()
     helper_text = StringProperty()
     error = BooleanProperty()
 
-
 class LabelDialogContent(MDBoxLayout):
     pass
-
 
 LABEL_DIALOG_TITLE_ADDRESS = "Label Address"
 LABEL_DIALOG_TITLE_TRANSACTION = "Label Transaction"
@@ -187,22 +172,24 @@ class UTXOListItem(TwoLineListItem):
         this_utxo_menu_items = [{"viewclass": "MyMenuItem",
                                  "on_release": lambda fx="view-address": app.utxo_menu_callback(self, fx),
                                  "text": "View Address"},
-                                 {"viewclass": "MyMenuItem",
-                                  "on_release": lambda fx="add-label-address": app.utxo_menu_callback(self, fx),
-                                  "text": LABEL_DIALOG_TITLE_ADDRESS },
-                                 {"viewclass": "MyMenuItem",
-                                  "on_release": lambda fx="add-label-tx": app.utxo_menu_callback(self, fx),
-                                  "text": LABEL_DIALOG_TITLE_TRANSACTION},
-                                 {"viewclass": "MyMenuItem",
-                                  "on_release": lambda fx="add-label-utxo": app.utxo_menu_callback(self, fx),
-                                  "text": LABEL_DIALOG_TITLE_UTXO},
-                                 {"viewclass": "MyMenuItem",
-                                  "on_release": lambda fx="private-key": app.utxo_menu_callback(self, fx),
-                                  "text": "Private Key"},
-                                   {"viewclass": "MyMenuItem",
-                                    "on_release": lambda fx="redeem-script": app.utxo_menu_callback(self, fx),
-                                    "text": "Redeem Script"},
-
+                                 # WIP: {"viewclass": "MyMenuItem",
+                                 # WIP:  "on_release": lambda fx="view-labels": app.utxo_menu_callback(self, fx),
+                                 # WIP:  "text": "View Labels"},
+                                 # WIP: {"viewclass": "MyMenuItem",
+                                 # WIP:  "on_release": lambda fx="add-label-address": app.utxo_menu_callback(self, fx),
+                                 # WIP:  "text": LABEL_DIALOG_TITLE_ADDRESS },
+                                 # WIP: {"viewclass": "MyMenuItem",
+                                 # WIP:  "on_release": lambda fx="add-label-tx": app.utxo_menu_callback(self, fx),
+                                 # WIP:  "text": LABEL_DIALOG_TITLE_TRANSACTION},
+                                 # WIP: {"viewclass": "MyMenuItem",
+                                 # WIP:  "on_release": lambda fx="add-label-utxo": app.utxo_menu_callback(self, fx),
+                                 # WIP:  "text": LABEL_DIALOG_TITLE_UTXO},
+                                 # WIP: {"viewclass": "MyMenuItem",
+                                 # WIP:  "on_release": lambda fx="private-key": app.utxo_menu_callback(self, fx),
+                                 # WIP:  "text": "Private Key"},
+                                 # WIP:   {"viewclass": "MyMenuItem",
+                                 # WIP:     "on_release": lambda fx="redeem-script": app.utxo_menu_callback(self, fx),
+                                 # WIP: "text": "Redeem Script"},
                                 ]
 
 
@@ -217,7 +204,7 @@ class UTXOListItem(TwoLineListItem):
                                             "text": "Unselect Coin",
                                             "on_release": lambda fx="remove-utxo-from-selection": app.utxo_menu_callback(self, fx),
                                             })
-
+        # WIP:
         ## do not spend coins ("label/group")
 
         """
@@ -232,7 +219,6 @@ class UTXOListItem(TwoLineListItem):
         {"viewclass": "MyMenuItem",
          "on_release": lambda x="Sign Message": self.utxo_menu_callback(self, x),
          "text": "TODO:Sign/Verify Message" },
-
 
         {"viewclass": "MyMenuItem",
          "on_release": lambda x="View Private Key": self.utxo_menu_callback(self, x),
@@ -321,21 +307,26 @@ class BrainbowApp(MDApp):
         self._dialog = None # generic dialog
         self._disconnect_dialog = None
         self.label_store = None
-
+        self.low_entropy_warning = True
+        self.is_offline_mode = False
+        self.n_a_offline_mode_msg = "Not available in 'Offline Mode'."
         self.electrum_server_presets_testnet = [
             "tcp://testnet.qtornado.com:51001",
             "ssl://testnet.aranguren.org:51002",
         ]
         self.electrum_server_presets_mainnet = [
             #"ssl://electrum.blockstream.info:50002", Disconnects after a few seconds..
-            "ssl://bitcoin.lu.ke:50002",
+            #"ssl://bitcoin.lu.ke:50002",
             "ssl://electrum.emzy.de:50002",
+            "ssl://fulcrum.sethforprivacy.com:50002",
             "ssl://electrum.bitaroo.net:50002",
         ]
         #TODO: when switching to mainnet instead of testnet
         # self.electrum_server_presets = self.electrum_server_presets_mainnet
         self.electrum_server_presets = self.electrum_server_presets_testnet
+
         # class MyMenuItem(MDMenuItem):
+
         class MyMenuItem(OneLineListItem):
             pass
 
@@ -452,6 +443,8 @@ class BrainbowApp(MDApp):
                                         "text": "View Address",
                                         "disabled": True})
 
+        # WIP: See "WE NEED A TX OBJ HERE OR CHANGE" below.
+        """
         if self.wallet.history_store.get_tx(txid) :
             self.txo_menu_items.append({"viewclass": "MyMenuItem",
                                       "on_release": lambda x={
@@ -464,7 +457,7 @@ class BrainbowApp(MDApp):
             self.txo_menu_items.append({"viewclass": "MyMenuItem",
                                       "text": "View Transaction",
                                       "disabled": True})
-
+        """
 
         app.txo_menu = MDDropdownMenu(items=self.txo_menu_items,
                                          width_mult=6,
@@ -490,6 +483,7 @@ class BrainbowApp(MDApp):
         key = None
 
         if fx in ["view-address",
+                  "view-labels",
                   "private-key",
                   "redeem-script",
                   "add-label-address"]:
@@ -508,6 +502,10 @@ class BrainbowApp(MDApp):
         if fx == "view-address":
             self.open_address_bottom_sheet_callback(address)
 
+        elif fx == "view-labels":
+            self.open_labels_bottom_sheet_callback(address)
+
+
         elif fx == "add-label-address":
             self.show_label_dialog(title=LABEL_DIALOG_TITLE_ADDRESS, label_target="{}".format(address))
 
@@ -521,6 +519,7 @@ class BrainbowApp(MDApp):
 
         elif key and fx == "private-key":
             self.show_dialog("Private Key", "", qrdata=key.wif())
+
         elif key and fx == "redeem-script":
             if self.bech32:
                 return
@@ -533,10 +532,12 @@ class BrainbowApp(MDApp):
             self.wallet.selected_utxos.append(utxo_item.utxo)
             self.selected_list_items.append(utxo_item)
             utxo_item.bg_color = [0.97, 0.58, 0.10, .1]
+
         elif fx == "remove-utxo-from-selection":
             self.wallet.selected_utxos.remove(utxo_item.utxo)
             self.selected_list_items.remove(utxo_item)
             utxo_item.bg_color = (0, 0, 0, 1) # from kivy.utils import get_color_from_hex self.overlay_color
+
         if fx in ["add-utxo-to-selection", "remove-utxo-from-selection"]:
             self.load_coin_selection_user_interface()
             print(self.wallet.selected_utxos)
@@ -591,11 +592,35 @@ class BrainbowApp(MDApp):
         if self._wallet_ready is False:
             if on_off:
                 self.chain = nowallet.TBTC
+                self.units = "TBTC"
                 self.electrum_server_presets = self.electrum_server_presets_testnet
             else:
                 self.chain = nowallet.BTC
+                self.units = "BTC"
                 self.electrum_server_presets = self.electrum_server_presets_mainnet
             self.set_electrum_preset_chooser()
+
+    def offline_on_off_nav_items(self, on_off):
+        self.root.ids.exchange_rate_nav_item.disabled = on_off
+        self.root.ids.block_height_nav_item.disabled = on_off
+        self.root.ids.nav_drawer_item_transactions.disabled = on_off
+        self.root.ids.utxos_nav_item.disabled = on_off
+        self.root.ids.send_nav_item.disabled = on_off
+        self.root.ids.receive_nav_item.disabled = on_off
+
+
+    def offline_on_off_switch(self, switch, on_off):
+        """ Used during onboarding to switch between offline and online mode. """
+        if self._wallet_ready is False:
+            if on_off:
+                self.is_offline_mode = True
+                self.offline_on_off_nav_items(True)
+                self.root.ids.offline_or_not_image.source = "assets/dark-offline.png"
+            else:
+                self.is_offline_mode = False
+                self.offline_on_off_nav_items(False)
+                self.root.ids.offline_or_not_image.source = "assets/dark-online.png"
+
 
     def on_exchange_rate_switch_active(self, switch, on_off):
         if on_off:
@@ -612,15 +637,6 @@ class BrainbowApp(MDApp):
         self.update_balance_screen()
 
 
-    def on_offline_switch_active(self, switch, on_off):
-        if on_off:
-            print("OFFLINE MODE ")
-            self.root.ids.startup_offline_mode_image_source.source = "assets/dark-offline.png"
-        else:
-            print("NOT OFFLINE MODE")
-            self.root.ids.startup_offline_mode_image_source.source = "assets/dark-online.png"
-
-
     def show_snackbar(self, text):
         snackbar = Snackbar(text=text,
                             snackbar_x="8dp",
@@ -630,6 +646,7 @@ class BrainbowApp(MDApp):
         return snackbar
 
     def show_dialog(self, title, message, qrdata=None, cb=None):
+        print("show_dialog {}".format(title))
         if qrdata:
             dialog_height = 300
             content = QRCodeWidget(data=qrdata,
@@ -644,7 +661,8 @@ class BrainbowApp(MDApp):
             #                   size_hint_y=None,
             #                   valign='top')
             # content.bind(texture_size=content.setter('size'))
-        self._dialog = MDDialog(title=title,
+
+        _dialog = MDDialog(title=title,
                                content_cls=content if content else None,
                                text=message if not content else "",
                                size_hint=(.8, None),
@@ -653,15 +671,18 @@ class BrainbowApp(MDApp):
                                buttons=[
                                    MDFlatButton(
                                        text="DISMISS",
-                                       on_release=partial(self.close_dialog))
+                                       on_release=lambda x: self.close_dialog(_dialog))
                                    ]
                                )
-        self._dialog.open()
+        _dialog.open()
 
 
-    def close_dialog(self, *args):
-        if self._dialog:
-            self._dialog.dismiss()
+
+
+    def close_dialog(self, dialog_instance, *args):
+        if dialog_instance:
+            dialog_instance.dismiss()
+
 
 
     def close_disconnect_dialog(self, *args):
@@ -851,7 +872,7 @@ class BrainbowApp(MDApp):
         self.root.ids.toolbar.left_action_items = [
                     ["menu", lambda x: self.nav_drawer_handler()],
                     #["theme-light-dark", lambda x: app.switch_theme_handler()],
-                    ["creation", lambda x: app.dump_history_to_fs()],
+                # WIP:     ["creation", lambda x: app.dump_history_to_fs()],
                 ]
         self.root.ids.toolbar.right_action_items = []
         if current is not None:
@@ -920,7 +941,6 @@ class BrainbowApp(MDApp):
         self.root.ids.nav_drawer.set_state("close")
         self.root.ids.sm.current = "blockheightscreen"
 
-
     def check_entropy(self):
         """
         Update entropy hint.
@@ -930,8 +950,10 @@ class BrainbowApp(MDApp):
         self.root.ids.pass_progress.set_norm_value(passphrase_entropy_bits/128.)
         if passphrase_entropy_bits >= 128:
             self.root.ids.passphrase_hint.text = ""
+            self.low_entropy_warning = False
             self.root.ids.pass_progress.color = "green"
         else:
+            self.low_entropy_warning = True
             if passphrase_entropy_bits >= 128/3*2:
                 self.root.ids.pass_progress.color = "orange"
             elif passphrase_entropy_bits >= 128/2:
@@ -941,6 +963,7 @@ class BrainbowApp(MDApp):
             if len(self.root.ids.pass_field.text) > 0:
                 self.root.ids.passphrase_hint.text = "WARNING: Use a better passphrase!"
         if int(passphrase_entropy_bits) >= 128:
+            self.low_entropy_warning = False
             self.root.ids.passphrase_hint.color = "black"
             self.root.ids.passphrase_hint.text = "~{} bits of entropy".format(int(passphrase_entropy_bits))
 
@@ -1115,7 +1138,14 @@ class BrainbowApp(MDApp):
         #self._unlock_nav_drawer()
         #self.show_dialog("Loaded for the first time?", "If you are loading this wallet for the first time, it is recommended to close it and reload it.\n\This way you can make sure that you did not make a typo.\n\nIf the wallet is ___ again, then everything is fine.")
         #  in your salt or passphrase
-        if len(self.wallet.get_tx_history()) == 0:
+
+        if self.low_entropy_warning:
+            self.show_dialog("Warning: Low Entropy!",
+            """The provided passphrase and salt combination appears to have low entropy (less than 128 bits). This could potentially compromise the security of your wallet.
+            \n\nPlease consider using a longer and more complex passphrase and salt to ensure a higher level of protection."""
+            )
+
+        if len(self.wallet.get_tx_history()) == 0 and self.is_offline_mode is False:
             self.show_dialog("New wallet?",
                     "To make sure that you did not make a typo, it is recommended to close the wallet now and reloading it.\n\nIf the wallet name is '{}' after reloading it, everything is fine.".format(
                     wallet_alias(self.wallet.fingerprint[0:2], self.wallet.fingerprint[2:4])))
@@ -1152,9 +1182,11 @@ class BrainbowApp(MDApp):
 
         try:
             await self.do_login_tasks(email, passphrase)
+        except aiosocks_errors.SocksError:
+            self.show_dialog("Error", "No internet connection or connection lost.",
+                             cb=lambda x: sys.exit(1))
         except (SocksConnectionError, ClientConnectorError):
-            self.show_dialog("Error",
-                             "Make sure Tor/Orbot is installed and running before using Brainbow.",
+            self.show_dialog("Error", "Make sure Tor/Orbot is installed and running before using Brainbow.",
                              cb=lambda x: sys.exit(1))
             return
         self.update_screens()
@@ -1192,10 +1224,13 @@ class BrainbowApp(MDApp):
 
         try:
             await self.do_login_tasks(bip39_mnemonic=bip39_mnemonic, bip39_passphrase=None)
+        except aiosocks_errors.SocksError:
+            self.show_dialog("Error", "No internet connection or connection lost.",
+                            cb=lambda x: sys.exit(1))
         except (SocksConnectionError, ClientConnectorError):
             self.show_dialog("Error",
-                             "Make sure Tor/Orbot is installed and running before using Brainbow.",
-                             cb=lambda x: sys.exit(1))
+                            "Make sure Tor/Orbot is installed and running before using Brainbow.",
+                            cb=lambda x: sys.exit(1))
             return
         self.update_screens()
         self.wallet_ready()
@@ -1276,8 +1311,6 @@ class BrainbowApp(MDApp):
         else:
             self.root.ids.dropdown_electrum_field.error = True
 
-
-
     def set_electrum_preset_chooser(self):
         # electrum chooser / or custom
         electrum_server_items = [
@@ -1299,11 +1332,12 @@ class BrainbowApp(MDApp):
 
     async def track_top_block(self):
         global top_blk
-        fut, Q = self.wallet.connection.client.subscribe('blockchain.headers.subscribe') # listen_subscribe
-        top_blk = await fut
-        while 1:
-            top_blk = max(await Q.get())
-            print("new top-block: %r" % (top_blk,))
+        if self.wallet.connection:
+            fut, Q = self.wallet.connection.client.subscribe('blockchain.headers.subscribe') # listen_subscribe
+            top_blk = await fut
+            while 1:
+                top_blk = max(await Q.get())
+                print("new top-block: %r" % (top_blk,))
 
     #
     async def do_listen_to_headers(self):
@@ -1323,29 +1357,36 @@ class BrainbowApp(MDApp):
         logging.info("Listening for new transactions.")
         task = asyncio_create_task(self.wallet.listen_to_addresses())
 
-    async def do_login_tasks(self, email=None, passphrase=None, bip39_mnemonic=None, bip39_passphrase=None):
-        self.root.ids.wait_text.text = "Connecting".upper()
-        self.root.ids.wait_text_small.text = "Getting a random server for you."
-        try:
-            electrum_settings = self.get_electrum_settings()
-            if electrum_settings:
-                server, port, proto = electrum_settings
-                print ("server, port, proto = {} {} {} ".format(server, port, proto))
-                self.root.ids.wait_text_small.text = "Connected to {}.".format(server)
-            else:
-                self.show_dialog("Error",
-                                 "Electrum settings are invalid.\n\nPlease restart Brainbow and try again.",
-                                 cb=lambda x: sys.exit(1))
-        except Exception as ex:
-            print(traceback.format_exc())
-            pass
-        try:
-            self.connection = nowallet.Connection(self.loop, server, port, proto, disconnect_callback=self.disconnect_callback)
-        except Exception as ex:
-            print("EX1024")
-            print(traceback.format_exc())
+    async def do_login_tasks(self, email=None, passphrase=None,
+                                   bip39_mnemonic=None, bip39_passphrase=None):
+        print("self.is_offline_mode {}".format(self.is_offline_mode))
+        if self.is_offline_mode is False:
+            self.root.ids.wait_text.text = "Connecting".upper()
+            try:
+                electrum_settings = self.get_electrum_settings()
+                if electrum_settings:
+                    server, port, proto = electrum_settings
+                    print ("server, port, proto = {} {} {} ".format(server, port, proto))
+                    self.root.ids.wait_text_small.text = "Connecting to {}.".format(server)
+                else:
+                    self.show_dialog("Error",
+                                     "Electrum settings are invalid.\n\nPlease restart Brainbow and try again.",
+                                     cb=lambda x: sys.exit(1))
+            except Exception as ex:
+                print(traceback.format_exc())
+                pass
+            try:
+                self.connection = nowallet.Connection(self.loop, server, port, proto, disconnect_callback=self.disconnect_callback)
+            except Exception as ex:
+                print("EX1024")
+                print(traceback.format_exc())
+                await self.connection.do_connect()
             await self.connection.do_connect()
-        await self.connection.do_connect()
+            self.root.ids.wait_text_small.text = "Connected to {}.".format(server)
+        else:
+            print("OFFLINE!!")
+            self.connection = None
+
 
         if email and passphrase:
             self.root.ids.wait_text.text = "Deriving\nKeys".upper()
@@ -1372,56 +1413,65 @@ class BrainbowApp(MDApp):
                         self.wallet.fingerprint,
                         wallet_alias(self.wallet.fingerprint[0:2],
                                 self.wallet.fingerprint[2:4]))
-        self.root.ids.wait_text.text = "Fetching\nhistory".upper()
-        await self.wallet.discover_all_keys()
+        if self.is_offline_mode is False:
+            self.root.ids.wait_text.text = "Fetching\nhistory".upper()
+            await self.wallet.discover_all_keys()
 
-        # For future compatibility - currently it's initialized with "BTC" so this is a no-op.
-        if self.currency != "BTC":
-            self.root.ids.wait_text.text = "Fetching\nexchange\nrates".upper()
-            # just await, but since the fetching url ruturns 403 make it anything
-            try:
-                self.exchange_rates = await fetch_exchange_rates(nowallet.BTC.chain_1209k)
-            except:
-                self.exchange_rates = False
-                self.show_snackbar("Failed fetching exchange rates. Starting without...")
+            # For future compatibility - currently it's initialized with "BTC" so this is a no-op.
+            if self.currency != "BTC":
+                self.root.ids.wait_text.text = "Fetching\nexchange\nrates".upper()
+                # just await, but since the fetching url ruturns 403 make it anything
+                try:
+                    self.exchange_rates = await fetch_exchange_rates(nowallet.BTC.chain_1209k)
+                except:
+                    self.exchange_rates = False
+                    self.show_snackbar("Failed fetching exchange rates. Starting without...")
 
-        self.root.ids.wait_text.text = "Getting\nfee\nestimate".upper()
+            self.root.ids.wait_text.text = "Getting\nfee\nestimate".upper()
 
-        coinkb_fee = await self.wallet.get_fee_estimation(6)
-        self.current_fee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
+            coinkb_fee = await self.wallet.get_fee_estimation(6)
+            self.current_fee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
+            coinkb_fee = await self.wallet.get_relayfee()
+            print("coinkb_fee {}".format(coinkb_fee))
+            relayfee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
+            print("fee {}, relayfee {}".format(self.current_fee, relayfee))
 
-        #self.root.ids.wait_text_small.text = "Wating for fee estimate .."
+            self.mempool_recommended_fees = {}
+            if self.current_fee == relayfee:
+                self.mempool_recommended_fees = {
+                    "fastestFee": self.current_fee,
+                    "halfHourFee": self.current_fee,
+                    "hourFee": self.current_fee,
+                    "economyFee": self.current_fee,
+                    "minimumFee": relayfee
+                }
+            else:
+                coinkb_fee = await self.wallet.get_fee_estimation(3)
+                halfHourFee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
 
-        coinkb_fee = await self.wallet.get_relayfee()
-        relayfee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
+                coinkb_fee = await self.wallet.get_fee_estimation(1)
+                fastestFee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
 
-        print("fee {} relay {}".format(self.current_fee, relayfee))
-
-        self.mempool_recommended_fees = {}
-        if self.current_fee == relayfee:
-            self.mempool_recommended_fees = {
-                "fastestFee": self.current_fee,
-                "halfHourFee": self.current_fee,
-                "hourFee": self.current_fee,
-                "economyFee": self.current_fee,
-                "minimumFee": relayfee
-            }
+                self.mempool_recommended_fees = {
+                    "fastestFee": fastestFee,
+                    "halfHourFee": halfHourFee,
+                    "hourFee": self.current_fee,
+                    "economyFee": relayfee,
+                    "minimumFee": relayfee
+                }
+            logging.info("Finished 'doing login tasks'")
+            logging.info("all known addreses {}".format(self.wallet.get_all_known_addresses(addr=True)))
         else:
-            coinkb_fee = await self.wallet.get_fee_estimation(3)
-            halfHourFee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
-
-            coinkb_fee = await self.wallet.get_fee_estimation(1)
-            fastestFee = nowallet.Wallet.coinkb_to_satb(coinkb_fee)
-
+            self.current_fee = -1
             self.mempool_recommended_fees = {
-                "fastestFee": fastestFee,
-                "halfHourFee": halfHourFee,
+                "fastestFee": -1,
+                "halfHourFee": -1,
                 "hourFee": self.current_fee,
-                "economyFee": relayfee,
-                "minimumFee": relayfee
+                "economyFee": -1,
+                "minimumFee": -1
             }
-        logging.info("Finished 'doing login tasks'")
-        logging.info("all known addreses {}".format(self.wallet.get_all_known_addresses(addr=True)))
+            self.exchange_rates = False
+            self.show_snackbar("Starting Brainbow in 'Offline Mode'.")
 
     def update_screens(self):
         self.update_balance_screen()
@@ -1438,21 +1488,23 @@ class BrainbowApp(MDApp):
             self.check_new_history()
 
     async def check_new_block(self):
-        while True:
-            await asyncio_sleep(1)
-            try:
-                tip = top_blk.get('height', 0)
-                if tip > self.block_height:
-                    self.block_height = tip
-                    self.root.ids.blockheight_lbl.text = "[b]{}[/b]".format(tip)
-                    logging.info("NEW self.block_height={}".format(self.block_height))
-                    self.update_balance_screen()
-                    self.show_snackbar("Block {} found!".format(self.block_height))
-            except Exception as err:
-                print(traceback.format_exc())
-                logging.error(err)
-                self.block_height = 0
-
+        if self.is_offline_mode is False:
+            while True:
+                await asyncio_sleep(1)
+                try:
+                    tip = top_blk.get('height', 0)
+                    if tip > self.block_height:
+                        self.block_height = tip
+                        self.root.ids.blockheight_lbl.text = "[b]{}[/b]".format(tip)
+                        logging.info("NEW self.block_height={}".format(self.block_height))
+                        self.update_balance_screen()
+                        self.show_snackbar("Block {} found!".format(self.block_height))
+                except Exception as err:
+                    print(traceback.format_exc())
+                    logging.error(err)
+                    self.block_height = 0
+        else:
+            self.block_height = 0
 
     async def update_exchange_rates(self):
         sleep_time = 15
@@ -1557,63 +1609,92 @@ class BrainbowApp(MDApp):
         self.root.ids.nav_drawer_item_transactions.size_hint_x = None
 
 
-    def update_balance_screen(self):
-        self.root.ids.balance_label.text = self.balance_str(fiat=self.fiat_balance)
-        self.root.ids.recycleView.data_model.data = []
-        tx_counter = 0
-        for hist in self.wallet.get_tx_history():
-            verb = "-" if hist.is_spend else "+"
-            #if self.units.startswith("sats"):
-            val = self.unit_precision.format(hist.value * self.unit_factor)
-            hist_str = "{}{} {}".format(verb, val, self.units)
-            self.add_list_item(hist_str, hist)
-            tx_counter += 1
-        self.root.ids.nav_drawer_item_transactions.right_text = "{}".format(tx_counter)
-        self.root.ids.nav_drawer_item_transactions.size_hint_x = None
-        try:
-            if self.currency in ["BTC", "TBTC"]:
-                rate = "1"
-            else:
-                rate = "{:.2f}".format(self.get_rate())
-            self.root.ids.current_btc_exchange_rate.text = \
-                "1 BTC = {} {}".format(rate, self.currency)
-        except Exception as ex:
-            print (ex)
-            pass
 
+
+    def display_offline_message(self, is_offline, tab_id, message):
+        if is_offline:
+            self.root.ids[tab_id].opacity = 0  # Make RecycleView invisible
+            offline_label = MDLabel(
+                text=message,
+                halign="center",
+                valign="middle",
+                size_hint=(1, 1),
+                pos_hint={"center_x": 0.5, "center_y": 0.5}
+            )
+            offline_label.bind(size=offline_label.setter('text_size'))
+            self.root.ids[tab_id].parent.add_widget(offline_label)
+        else:
+            self.root.ids[tab_id].opacity = 1
+
+    def update_balance_screen(self):
+        if self.is_offline_mode:
+            self.display_offline_message(True, 'main_tabs_balance', self.n_a_offline_mode_msg)
+        else:
+            self.root.ids.balance_label.text = self.balance_str(fiat=self.fiat_balance)
+            self.root.ids.recycleView.data_model.data = []
+            tx_counter = 0
+            for hist in self.wallet.get_tx_history():
+                verb = "-" if hist.is_spend else "+"
+                #if self.units.startswith("sats"):
+                val = self.unit_precision.format(hist.value * self.unit_factor)
+                hist_str = "{}{} {}".format(verb, val, self.units)
+                self.add_list_item(hist_str, hist)
+                tx_counter += 1
+            self.root.ids.nav_drawer_item_transactions.right_text = "{}".format(tx_counter)
+            self.root.ids.nav_drawer_item_transactions.size_hint_x = None
+            try:
+                if self.currency in ["BTC", "TBTC"]:
+                    rate = "1"
+                else:
+                    rate = "{:.2f}".format(self.get_rate())
+                self.root.ids.current_btc_exchange_rate.text = \
+                    "1 BTC = {} {}".format(rate, self.currency)
+            except Exception as ex:
+                print (ex)
+                pass
 
     def update_utxo_screen(self):
-        #balance = Decimal(0)
-        self.root.ids.utxoRecycleView.data_model.data = []
-        self.wallet.utxos = utxo_deduplication(self.wallet.utxos)
-        for utxo in self.wallet.utxos:
-            #print("*"*30)
-            #print(dir(utxo))
-            value = Decimal(str(utxo.coin_value / nowallet.Wallet.COIN))
-            #balance += value
-            utxo_str = (self.unit_precision + " {}").format(value * self.unit_factor, self.units)
-            _utxo = {"text": utxo_str,
-                     "secondary_text": "{}....{}:{}".format(
-                        str(utxo.tx_hash)[:19],
-                        str(utxo.tx_hash)[-19:],
-                        utxo.tx_out_index),  #Spendable
-                     "utxo": utxo,
-                     "tertiary_text": "{}".format(utxo.address(self.chain.netcode)),
+        if self.is_offline_mode:
+            self.display_offline_message(True, 'utxoRecycleView', self.n_a_offline_mode_msg)
+            self.update_addresses_screen()
+        else:
+            self.display_offline_message(False, 'utxoRecycleView', "")
+            #balance = Decimal(0)
+            self.root.ids.utxoRecycleView.data_model.data = []
+            self.wallet.utxos = utxo_deduplication(self.wallet.utxos)
+            for utxo in self.wallet.utxos:
+                #print("*"*30)
+                #print(dir(utxo))
+                value = Decimal(str(utxo.coin_value / nowallet.Wallet.COIN))
+                #balance += value
+                utxo_str = (self.unit_precision + " {}").format(value * self.unit_factor, self.units)
+                _utxo = {"text": utxo_str,
+                         "secondary_text": "{}....{}:{}".format(
+                            str(utxo.tx_hash)[:19],
+                            str(utxo.tx_hash)[-19:],
+                            utxo.tx_out_index),  #Spendable
+                         "utxo": utxo,
+                         "tertiary_text": "{}".format(utxo.address(self.chain.netcode)),
 
-                     }
-            self.root.ids.utxoRecycleView.data_model.data.append(_utxo)
-        self.update_addresses_screen()
-        #print ("Computed Balance: {}".format(balance))
+                         }
+                self.root.ids.utxoRecycleView.data_model.data.append(_utxo)
+            self.update_addresses_screen()
+            #print ("Computed Balance: {}".format(balance))
+
+
 
     def update_send_screen(self):
-        if len(self.wallet.selected_utxos):
-            self.root.ids.send_balance.text = \
-                "Coin Selection Balance:\n" + self.selected_balance_str()
+        if self.is_offline_mode:
+            self.display_offline_message(True, 'send', self.n_a_offline_mode_msg)
         else:
-            self.root.ids.send_balance.text = \
-                "Available Balance:\n" + self.balance_str()
-
-        self.root.ids.fee_input.text = str(self.current_fee)
+            self.display_offline_message(False, 'send', "")
+            if len(self.wallet.selected_utxos):
+                self.root.ids.send_balance.text = \
+                    "Coin Selection Balance:\n" + self.selected_balance_str()
+            else:
+                self.root.ids.send_balance.text = \
+                    "Available Balance:\n" + self.balance_str()
+            self.root.ids.fee_input.text = str(self.current_fee)
 
     def spend_all_UTXOs(self):
         #val = self.unit_precision.format(hist.value * self.unit_factor)
@@ -1631,11 +1712,15 @@ class BrainbowApp(MDApp):
                 self.root.ids.spend_amount_input.text))
 
     def update_recieve_screen(self):
-        address = self.update_recieve_qrcode()
-        encoding = "bech32" if self.wallet.bech32 else "P2SH"
-        current_addr = "\nCurrent receive address ({}):\n\n{}\n\n".format(encoding, address)
-        #TODO: add derivation path, eg. m/49'/1'/0'/0/5
-        self.root.ids.addr_label.text = "{}".format(current_addr)
+        if self.is_offline_mode:
+            self.display_offline_message(True, 'receive', self.n_a_offline_mode_msg)
+        else:
+            self.display_offline_message(False, 'receive', "")
+            address = self.update_recieve_qrcode()
+            encoding = "bech32" if self.wallet.bech32 else "P2SH"
+            current_addr = "\nCurrent receive address ({}):\n\n{}\n\n".format(encoding, address)
+            #TODO: add derivation path, eg. m/49'/1'/0'/0/5
+            self.root.ids.addr_label.text = "{}".format(current_addr)
 
     def update_recieve_qrcode(self):
         address = self.wallet.get_address(
@@ -1682,25 +1767,50 @@ class BrainbowApp(MDApp):
         from bottom_screens_address import open_address_bottom_sheet
         open_address_bottom_sheet(address=address)
 
+    def open_labels_bottom_sheet_callback(self, address):
+        from bottom_screens_labels import open_labels_bottom_sheet
+        open_labels_bottom_sheet(address=address)
+
     def _update_addresses_screen(self, change=False):
-        all_used_addresse = self.wallet.get_all_used_addresses(receive=not change, change=change)
-        for address in self.wallet.get_all_known_addresses(addr=True, change=change):
-            item = {
-                "icon": 'database-marker' if address in all_used_addresse else 'database-marker-outline',
-                "text": address,
-                "secondary_text": "Derivation: m{}'/{}'/{}'/{}/{} {}".format(
-                    self.wallet.derivation.get('bip'),
-                    self.wallet.derivation.get('bip44'),
-                    self.wallet.derivation.get('account'),
-                    '1' if change else '0',
-                    self.wallet.search_for_index(search=address, addr=True, change=change),
-                    'already used' if address in all_used_addresse else ''),
-                    "on_release": lambda address=address: self.open_address_bottom_sheet_callback(address)
-                }
-            if change:
-                self.root.ids.changeaddresses_recycle_view.data_model.data.append(item)
-            else:
-                self.root.ids.addresses_recycle_view.data_model.data.append(item)
+        if self.is_offline_mode is True:
+            addresses = self.wallet.generate_addresses(count=10, change=change)
+            print (addresses)
+            for idx, address in enumerate(addresses):
+                item = {
+                    "icon": 'database-alert-outline',
+                    "text": address,
+                    "secondary_text": "Derivation: m{}'/{}'/{}'/{}/{} {}".format(
+                        self.wallet.derivation.get('bip'),
+                        self.wallet.derivation.get('bip44'),
+                        self.wallet.derivation.get('account'),
+                        '1' if change else '0',
+                        idx,
+                        'used?'),
+                        "on_release": lambda address=address: self.open_address_bottom_sheet_callback(address)
+                    }
+                if change:
+                    self.root.ids.changeaddresses_recycle_view.data_model.data.append(item)
+                else:
+                    self.root.ids.addresses_recycle_view.data_model.data.append(item)
+        else:
+            all_used_addresse = self.wallet.get_all_used_addresses(receive=not change, change=change)
+            for address in self.wallet.get_all_known_addresses(addr=True, change=change):
+                item = {
+                    "icon": 'database-marker' if address in all_used_addresse else 'database-marker-outline',
+                    "text": address,
+                    "secondary_text": "Derivation: m{}'/{}'/{}'/{}/{} {}".format(
+                        self.wallet.derivation.get('bip'),
+                        self.wallet.derivation.get('bip44'),
+                        self.wallet.derivation.get('account'),
+                        '1' if change else '0',
+                        self.wallet.search_for_index(search=address, addr=True, change=change),
+                        'already used' if address in all_used_addresse else ''),
+                        "on_release": lambda address=address: self.open_address_bottom_sheet_callback(address)
+                    }
+                if change:
+                    self.root.ids.changeaddresses_recycle_view.data_model.data.append(item)
+                else:
+                    self.root.ids.addresses_recycle_view.data_model.data.append(item)
 
 
     def update_addresses_screen(self):
@@ -1820,7 +1930,8 @@ class BrainbowApp(MDApp):
             return
         rate = self.get_rate() / self.unit_factor
         new_amount = None
-        if rate:
+        if rate or self.exchange_rates in [None, False]:
+            # We now either have a rate or don't need an exchange rate.
             if type == "coin":
                 new_amount = amount * rate
                 self.update_amount_fields(amount, new_amount)
@@ -1868,25 +1979,19 @@ class BrainbowApp(MDApp):
             android_setflag()
 
         self.is_darkmode = True # Force dark mode for all
-
-        # Theme settings
         self.theme_cls.material_style = "M2"
         if self.is_darkmode:
             self.theme_cls.theme_style = "Dark"
         else:
             self.theme_cls.theme_style = "Light"
-        #self.theme_cls.primary_hue = "200"  # "500"
-        #self.theme_cls.secondary_palette = "Red"
-        #self.theme_cls.primary_hue = "200"  # "500"
-        #self.theme_cls.theme_style_switch_animation = True
-        #self.theme_cls.theme_style_switch_animation_duration = 0.8
 
         self.drawer_bg_color = self.root.ids.nav_drawer.md_bg_color
         self.use_kivy_settings = False
         self.rbf = self.config.getboolean("brainbow", "rbf")
         self.units = self.config.get("brainbow", "units")
+        print(self.config.get("brainbow", "units"))
         self.update_unit()
-        self.currency = "BTC"# disable by default self.config.get("brainbow", "currency")
+        self.currency = "BTC" # disable by default self.config.get("brainbow", "currency")
         self._hide_fiat_fields()
         self.explorer = self.config.get("brainbow", "explorer")
 

@@ -38,6 +38,8 @@ from app import update_waiting_texts
 from connection import Connection
 
 from embit import bip32, bip39, bip85
+from embit import bech32 as embit_bech32
+from pycoin.tx.script import tools
 
 from utils import is_valid_address
 from utils import utxo_deduplication
@@ -218,6 +220,8 @@ class Wallet:
         :param key: any given SegwitBIP32Node key
         :returns: A segwit (P2WPKH) address, either P2SH or bech32.
         """
+        if not key:
+            return "???"
         if not addr:
             return key.electrumx_script_hash(bech32=self.bech32)
         return key.bech32_p2wpkh_address() if self.bech32 else key.p2sh_p2wpkh_address()
@@ -468,7 +472,6 @@ class Wallet:
             key = self.get_key(index, change)  # type: SegwitBIP32Node
             scripthash = self.get_address(key)  # type: str
             address = self.get_address(key, addr=True)  # type: str
-
             history = await self.connection.listen_rpc(self.connection.methods["get_history"], [scripthash])  # type: List[Any]
 
             # Reassign historic info for this index
@@ -502,7 +505,6 @@ class Wallet:
 
             # Add utxos to our list
             self.utxos.extend(await self._get_utxos(scripthash))
-
             self.utxos = list(set(self.utxos)) # Dedupe <- new
 
             # Mark this index as used since it has a history
@@ -609,7 +611,6 @@ class Wallet:
             for i in range(current_index, current_index + Wallet._GAP_LIMIT):
                 addr = self.get_address(self.get_key(i, change))  # type: str
                 futures.append(self.connection.listen_subscribe(self.connection.methods["subscribe"], [addr]))
-
             result = await asyncio.gather(*futures) # type: List[Dict[str, Any]]
             quit_flag = await self._interpret_history(result, change)
             current_index += Wallet._GAP_LIMIT
@@ -627,8 +628,22 @@ class Wallet:
         begins consuming the queue so we can receive new tx histories from
         the server asynchronously.
         """
-        logging.debug("Listening for updates involving any known address...")
-        await self.connection.consume_queue(self._dispatch_result)
+        if self.connection:
+            logging.debug("Listening for updates involving any known address...")
+            await self.connection.consume_queue(self._dispatch_result)
+
+    def generate_addresses(self, count=10, change=False):
+        addresses = []
+        for index in range(count):
+            if change:
+                change_key = self.get_key(index, change=True)
+                addresses.append(self.get_address(change_key, addr=True))
+            else:
+                # Generate regular address
+                key = self.get_key(index, change=False)
+                addresses.append(self.get_address(key, addr=True))
+        return addresses
+
 
     async def _dispatch_result(self, result: List[str]) -> None:
         """ Gets called by the Connection's consume_queue method when a new TX
@@ -873,7 +888,19 @@ class Wallet:
         txs_out = []  # type: List[TxOut]
         for payable in payables:
             bitcoin_address, coin_value = payable
-            script = standard_tx_out_script(bitcoin_address)  # type: bytes
+            try:
+                script = standard_tx_out_script(bitcoin_address)  # type: bytes
+            except:
+                # Handle bech32 using embit.
+                # Our pycoin 0.8 is not able to do it directly.
+                addr = bitcoin_address.lower()
+                hrp = addr.split("1")[0]
+                ver, prog = embit_bech32.decode(hrp, addr)
+                # Convert the witness program (prog) to bytes
+                decoded_prog = bytes(prog)
+                # Construct the scriptPubKey for P2WPKH
+                script = bytes([0x00, len(decoded_prog)]) + decoded_prog
+
             txs_out.append(TxOut(coin_value, script))
         txs_out.sort(key=lambda txo: (txo.coin_value, b2h(txo.script)))
 
